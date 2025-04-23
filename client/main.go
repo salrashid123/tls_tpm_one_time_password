@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
+	"main/common"
 	"net"
 	"net/http"
 	"os"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/google/go-tpm-tools/simulator"
 	"github.com/google/go-tpm/tpmutil"
+	"github.com/hashicorp/vault/sdk/helper/kdf"
 )
 
 var (
@@ -73,17 +73,25 @@ func main() {
 	}
 
 	// Start standard HMAC
-	mac := hmac.New(sha256.New, []byte(*key))
-	mac.Write(ekm)
-	derivedKey := mac.Sum(nil)
+	//prf := kdf.HMACSHA256PRF
+	prfLen := kdf.HMACSHA256PRFLen
+
+	// derivedKey, err := kdf.CounterMode(prf, prfLen, []byte(*key), ekm, 256)
+	// if err != nil {
+	// 	fmt.Printf("Error getting ekm %v\n", err)
+	// 	return
+	// }
 	// End standard HMAC
 
 	// start TPM HMAC
-	// derivedKey, err := common.TPMHMAC(*tpmPath, *in, ekm)
-	// if err != nil {
-	// 	fmt.Printf("Error calculating hmac %v\n", err)
-	// 	return
-	// }
+
+	derivedKey, err := kdf.CounterMode(func(key []byte, data []byte) ([]byte, error) {
+		return common.TPMHMAC(*tpmPath, *in, data)
+	}, prfLen, nil, ekm, 256)
+	if err != nil {
+		fmt.Printf("Error getting ekm %v\n", err)
+		return
+	}
 	// end TPM HMAC
 
 	fmt.Printf("derived APIKey: %s\n", base64.StdEncoding.EncodeToString(ekm))

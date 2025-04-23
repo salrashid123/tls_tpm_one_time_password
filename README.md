@@ -19,11 +19,11 @@ As shown:
 1. client loads the shared hmac key
 2. client connects to server over TLS
 3. client extracts the EKM
-4. client derives the sessionKey though calling HMAC(EKM)
+4. client derives the sessionKey though calling KDF with HMAC(EKM)
 5. client sends the sessionKey and its own client identifier to the server
 6. server derives the EKM
 7. sever extracts the client_identifer
-8. server acquires the deriveKey using hmac(client_identifier, EKM)
+8. server acquires the deriveKey using KDF with hmac(client_identifier, EKM)
 9. if derivedKeys match, proceed.
 
 

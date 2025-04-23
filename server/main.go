@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"flag"
@@ -14,10 +12,10 @@ import (
 	"slices"
 
 	//"net/http/httputil"
-
 	"github.com/google/go-tpm-tools/simulator"
 	"github.com/google/go-tpm/tpmutil"
 	"github.com/gorilla/mux"
+	"github.com/hashicorp/vault/sdk/helper/kdf"
 	"golang.org/x/net/http2"
 )
 
@@ -55,19 +53,13 @@ func eventsMiddleware(h http.Handler) http.Handler {
 			return
 		}
 
-		// Start standard HMAC
-		mac := hmac.New(sha256.New, []byte(*key))
-		mac.Write(ekm)
-		derivedKey := mac.Sum(nil)
-		// End standard HMAC
+		prf := kdf.HMACSHA256PRF
+		prfLen := kdf.HMACSHA256PRFLen
 
-		// start TPM HMAC
-		// derivedKey, err := common.TPMHMAC(*tpmPath, *in, ekm)
-		// if err != nil {
-		// 	http.Error(w, "Error calculating hmac %v\n", http.StatusInternalServerError)
-		// 	return
-		// }
-		// end TPM HMAC
+		derivedKey, err := kdf.CounterMode(prf, prfLen, []byte(*key), ekm, 256)
+		if err != nil {
+			panic(err)
+		}
 
 		fmt.Printf("derived APIKey: %s\n", base64.StdEncoding.EncodeToString(ekm))
 
@@ -78,7 +70,8 @@ func eventsMiddleware(h http.Handler) http.Handler {
 		}
 
 		if base64.StdEncoding.EncodeToString(derivedKey) != e {
-			http.Error(w, "Error: no ekm provided in header", http.StatusInternalServerError)
+			fmt.Printf("%v\n", err)
+			http.Error(w, "Error: error decoding derivedKey", http.StatusInternalServerError)
 			return
 		}
 
