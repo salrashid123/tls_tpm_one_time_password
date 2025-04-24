@@ -1,8 +1,6 @@
 package common
 
 import (
-	"encoding/hex"
-	"fmt"
 	"io"
 	"net"
 	"os"
@@ -97,16 +95,6 @@ func TPMHMAC(tpmPath string, pemkey string, data []byte) ([]byte, error) {
 		_, _ = flushContextCmd.Execute(rwr)
 	}()
 
-	defer func() {
-		flushContextCmd := tpm2.FlushContext{
-			FlushHandle: hKey.ObjectHandle,
-		}
-		_, err := flushContextCmd.Execute(rwr)
-		if err != nil {
-			fmt.Printf("%v\n", err)
-		}
-	}()
-
 	objAuth := &tpm2.TPM2BAuth{
 		Buffer: nil,
 	}
@@ -117,13 +105,6 @@ func TPMHMAC(tpmPath string, pemkey string, data []byte) ([]byte, error) {
 	}
 	defer func() {
 		_ = sasCloser()
-	}()
-
-	defer func() {
-		flushContextCmd := tpm2.FlushContext{
-			FlushHandle: sas.Handle(),
-		}
-		_, err = flushContextCmd.Execute(rwr)
 	}()
 
 	hmacStart := tpm2.HmacStart{
@@ -176,12 +157,4 @@ func TPMHMAC(tpmPath string, pemkey string, data []byte) ([]byte, error) {
 
 	return rspSC.Result.Buffer, nil
 
-}
-
-func decodeHex(h string) []byte {
-	data, err := hex.DecodeString(h)
-	if err != nil {
-		panic(err)
-	}
-	return data
 }
