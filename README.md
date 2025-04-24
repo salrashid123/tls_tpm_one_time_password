@@ -77,7 +77,7 @@ For more information see, [X25519MLKEM768 client server in go](https://github.co
 
 This repo also contains a sample where instead of just a header, the derivedKey is used to encrypt and or sign a JSON structure.
 
-See the example in the `http_jwt/` folder.   The default example shows a signed JWT using the derivedKey.
+See the example in the `http_jwt_*/` folder.   The default example shows a signed JWT using the derivedKey.
 
 - `signed`
 
