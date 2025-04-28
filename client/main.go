@@ -8,15 +8,17 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"main/common"
 	"net"
 	"net/http"
 	"os"
 	"slices"
 
+	kbkdf "github.com/canonical/go-kbkdf"
+
+	tpmkdf "github.com/salrashid123/tpm-kdf"
+
 	"github.com/google/go-tpm-tools/simulator"
 	"github.com/google/go-tpm/tpmutil"
-	"github.com/hashicorp/vault/sdk/helper/kdf"
 )
 
 var (
@@ -72,26 +74,18 @@ func main() {
 		return
 	}
 
-	// Start standard HMAC
-	//prf := kdf.HMACSHA256PRF
-	prfLen := kdf.HMACSHA256PRFLen
-
-	// derivedKey, err := kdf.CounterMode(prf, prfLen, []byte(*key), ekm, 256)
-	// if err != nil {
-	// 	fmt.Printf("Error getting ekm %v\n", err)
-	// 	return
-	// }
-	// End standard HMAC
-
+	c, err := os.ReadFile(*in)
+	if err != nil {
+		panic(err)
+	}
 	// start TPM HMAC
 
-	derivedKey, err := kdf.CounterMode(func(key []byte, data []byte) ([]byte, error) {
-		return common.TPMHMAC(*tpmPath, *in, data)
-	}, prfLen, nil, ekm, 256)
+	h, err := tpmkdf.TPMKDF(*tpmPath, nil, c, nil, nil)
 	if err != nil {
 		fmt.Printf("Error getting ekm %v\n", err)
 		return
 	}
+	derivedKey := kbkdf.CounterModeKey(h, nil, nil, ekm, 256)
 	// end TPM HMAC
 
 	fmt.Printf("derived APIKey: %s\n", base64.StdEncoding.EncodeToString(ekm))

@@ -12,10 +12,11 @@ import (
 	"slices"
 
 	//"net/http/httputil"
+	kbkdf "github.com/canonical/go-kbkdf"
+	"github.com/canonical/go-kbkdf/hmac_prf"
 	"github.com/google/go-tpm-tools/simulator"
 	"github.com/google/go-tpm/tpmutil"
 	"github.com/gorilla/mux"
-	"github.com/hashicorp/vault/sdk/helper/kdf"
 	"golang.org/x/net/http2"
 )
 
@@ -52,14 +53,8 @@ func eventsMiddleware(h http.Handler) http.Handler {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		prf := kdf.HMACSHA256PRF
-		prfLen := kdf.HMACSHA256PRFLen
-
-		derivedKey, err := kdf.CounterMode(prf, prfLen, []byte(*key), ekm, 256)
-		if err != nil {
-			panic(err)
-		}
+		k := []byte("my_api_key")
+		derivedKey := kbkdf.CounterModeKey(hmac_prf.SHA256, k, nil, ekm, 256)
 
 		fmt.Printf("derived APIKey: %s\n", base64.StdEncoding.EncodeToString(ekm))
 
