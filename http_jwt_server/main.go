@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"flag"
@@ -12,7 +14,6 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gorilla/mux"
-	"github.com/hashicorp/vault/sdk/helper/kdf"
 	"golang.org/x/net/http2"
 )
 
@@ -83,24 +84,15 @@ func eventsMiddleware(h http.Handler) http.Handler {
 		}
 		// end encrypt then sign
 
-		// Start standard HMAC
+		// Start standard HMAC as is a PRF
 
-		prf := kdf.HMACSHA256PRF
-		prfLen := kdf.HMACSHA256PRFLen
+		smac := hmac.New(sha256.New, []byte(*key))
+		smac.Write(ekmSign)
+		derivedSigningKey := smac.Sum(nil)
 
-		/// Vault
-		derivedSigningKey, err := kdf.CounterMode(prf, prfLen, []byte(*key), ekmSign, 256)
-		if err != nil {
-			fmt.Printf("Error getting ekm %v\n", err)
-			return
-		}
-
-		derivedEncryptionKey, err := kdf.CounterMode(prf, prfLen, []byte(*key), ekmEncrypt, 256)
-		if err != nil {
-			fmt.Printf("Error getting ekm %v\n", err)
-			return
-		}
-
+		emac := hmac.New(sha256.New, []byte(*key))
+		emac.Write(ekmEncrypt)
+		derivedEncryptionKey := emac.Sum(nil)
 		// end encrypt then sign
 
 		// End standard HMAC

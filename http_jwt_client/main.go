@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -14,7 +16,6 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
-	"github.com/hashicorp/vault/sdk/helper/kdf"
 )
 
 const (
@@ -66,20 +67,13 @@ func main() {
 		return
 	}
 
-	prf := kdf.HMACSHA256PRF
-	prfLen := kdf.HMACSHA256PRFLen
+	smac := hmac.New(sha256.New, []byte(*key))
+	smac.Write(ekmSign)
+	derivedSigningKey := smac.Sum(nil)
 
-	derivedSigningKey, err := kdf.CounterMode(prf, prfLen, []byte(*key), ekmSign, 256)
-	if err != nil {
-		fmt.Printf("Error getting ekm %v\n", err)
-		return
-	}
-
-	derivedEncryptionKey, err := kdf.CounterMode(prf, prfLen, []byte(*key), ekmEncrypt, 256)
-	if err != nil {
-		fmt.Printf("Error getting ekm %v\n", err)
-		return
-	}
+	emac := hmac.New(sha256.New, []byte(*key))
+	emac.Write(ekmEncrypt)
+	derivedEncryptionKey := emac.Sum(nil)
 
 	// End standard HMAC
 

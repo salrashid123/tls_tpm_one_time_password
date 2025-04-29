@@ -11,11 +11,7 @@ require (
 	golang.org/x/net v0.34.0
 )
 
-require (
-	github.com/canonical/go-kbkdf v0.0.0-20250104172618-3b1308f9acf9
-	github.com/hashicorp/vault/sdk v0.15.2
-	github.com/salrashid123/tpm-kdf v0.0.3
-)
+require github.com/salrashid123/tpm-kdf v0.0.4
 
 require (
 	golang.org/x/crypto v0.32.0 // indirect

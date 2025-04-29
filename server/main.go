@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"flag"
@@ -12,8 +14,7 @@ import (
 	"slices"
 
 	//"net/http/httputil"
-	kbkdf "github.com/canonical/go-kbkdf"
-	"github.com/canonical/go-kbkdf/hmac_prf"
+
 	"github.com/google/go-tpm-tools/simulator"
 	"github.com/google/go-tpm/tpmutil"
 	"github.com/gorilla/mux"
@@ -53,8 +54,22 @@ func eventsMiddleware(h http.Handler) http.Handler {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		k := []byte("my_api_key")
-		derivedKey := kbkdf.CounterModeKey(hmac_prf.SHA256, k, nil, ekm, 256)
+		//derivedKey := kbkdf.CounterModeKey(hmac_prf.SHA256, []byte(*key), nil, ekm, 256)
+
+		// Start standard HMAC to derive a key since its a PRF
+		mac := hmac.New(sha256.New, []byte(*key))
+		mac.Write(ekm)
+		derivedKey := mac.Sum(nil)
+		// End standard HMAC
+
+		// prf := kdf.HMACSHA256PRF
+		// prfLen := kdf.HMACSHA256PRFLen
+
+		// /// Usng Vault; we're doign this just to compare
+		// derivedKey, err := kdf.CounterMode(prf, prfLen, []byte(*key), ekm, 256)
+		// if err != nil {
+		// 	panic(err)
+		// }
 
 		fmt.Printf("derived APIKey: %s\n", base64.StdEncoding.EncodeToString(ekm))
 

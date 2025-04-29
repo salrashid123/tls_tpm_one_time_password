@@ -52,6 +52,11 @@ Starting Server..
 ```
 
 ```bash
+## start the softwareTPM
+# $ sudo swtpm socket \
+#   --tpmstate dir=myvtpm --tpm2 --server type=tcp,port=2321 --ctrl type=tcp,port=2322 --flags not-need-init,startup-clear --log level=5
+
+
 $ go run client/main.go 
     derived APIKey: ntbOfmI/pojI+/SgzQDTL8xdpGwuQho4qnerCoqNwQY=
     200 OK
