@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"flag"
@@ -18,6 +16,7 @@ import (
 	"github.com/google/go-tpm-tools/simulator"
 	"github.com/google/go-tpm/tpmutil"
 	"github.com/gorilla/mux"
+	"github.com/hashicorp/vault/sdk/helper/kdf"
 	"golang.org/x/net/http2"
 )
 
@@ -51,37 +50,40 @@ func eventsMiddleware(h http.Handler) http.Handler {
 
 		ekm, err := r.TLS.ExportKeyingMaterial("EXPORTER-my_label", []byte(c), 32)
 		if err != nil {
+			fmt.Printf("%v\n", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		//derivedKey := kbkdf.CounterModeKey(hmac_prf.SHA256, []byte(*key), nil, ekm, 256)
 
 		// Start standard HMAC to derive a key since its a PRF
-		mac := hmac.New(sha256.New, []byte(*key))
-		mac.Write(ekm)
-		derivedKey := mac.Sum(nil)
+		// mac := hmac.New(sha256.New, []byte(*key))
+		// mac.Write(ekm)
+		// derivedKey := mac.Sum(nil)
 		// End standard HMAC
 
-		// prf := kdf.HMACSHA256PRF
-		// prfLen := kdf.HMACSHA256PRFLen
+		prf := kdf.HMACSHA256PRF
+		prfLen := kdf.HMACSHA256PRFLen
 
 		// /// Usng Vault; we're doign this just to compare
-		// derivedKey, err := kdf.CounterMode(prf, prfLen, []byte(*key), ekm, 256)
-		// if err != nil {
-		// 	panic(err)
-		// }
+		derivedKey, err := kdf.CounterMode(prf, prfLen, []byte(*key), ekm, 256)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			http.Error(w, "Error: kdf error", http.StatusInternalServerError)
+			return
+		}
 
-		fmt.Printf("derived APIKey: %s\n", base64.StdEncoding.EncodeToString(ekm))
+		fmt.Printf("derived APIKey: %s\n", base64.StdEncoding.EncodeToString(derivedKey))
 
 		e := r.Header.Get("apikey")
 		if e == "" {
+			fmt.Printf("%v\n", err)
 			http.Error(w, "Error: no ekm provided in header", http.StatusInternalServerError)
 			return
 		}
 
 		if base64.StdEncoding.EncodeToString(derivedKey) != e {
-			fmt.Printf("%v\n", err)
-			http.Error(w, "Error: error decoding derivedKey", http.StatusInternalServerError)
+			fmt.Printf("Error comparing keys: got [%s], expected [%s]\n", e, base64.StdEncoding.EncodeToString(derivedKey))
+			http.Error(w, "Error: error comparing derivedKey", http.StatusInternalServerError)
 			return
 		}
 

@@ -36,9 +36,9 @@ Also see:
 ### Setup
 
 
-The default demo here will just use HMAC using the key directly.  If you wanted to use the TPM to perform the HMAC, see the section below.
+The default demo here will use a `software tpm` ([swtpm](https://github.com/stefanberger/swtpm)) and HMAC keys already embedded into the client-side TPM.
 
-To run, just start the server and client.  Note that the derivedKey is unique to each connection
+To run, just start the server and client. Only the client will use a TPM to derive the key and note that the derivedKey is unique to each connection
 
 
 ```bash
@@ -52,10 +52,9 @@ Starting Server..
 ```
 
 ```bash
-## start the softwareTPM
-# $ sudo swtpm socket \
-#   --tpmstate dir=myvtpm --tpm2 --server type=tcp,port=2321 --ctrl type=tcp,port=2322 --flags not-need-init,startup-clear --log level=5
-
+## start the softwareTPM witht the configuration in this repo.
+swtpm socket \
+  --tpmstate dir=myvtpm --tpm2 --server type=tcp,port=2321 --ctrl type=tcp,port=2322 --flags not-need-init,startup-clear --log level=5
 
 $ go run client/main.go 
     derived APIKey: ntbOfmI/pojI+/SgzQDTL8xdpGwuQho4qnerCoqNwQY=
@@ -87,11 +86,15 @@ See the example in the `http_jwt_*/` folder.   The default example shows a signe
 - `signed`
 
 ```bash
-$ go run server/main.go 
+## start the softwareTPM
+swtpm socket \
+  --tpmstate dir=myvtpm --tpm2 --server type=tcp,port=2321 --ctrl type=tcp,port=2322 --flags not-need-init,startup-clear --log level=5
+
+$ go run http_jwt_server/main.go 
     Starting Server..
     derived SigningKey: XwZghLVmPF/U5I+9yK1ZwxJNptLP6Se74Y1CSMQfJTY=
 
-$ go run client/main.go 
+$ go run http_jwt_client/main.go 
     derived SigningKey: XwZghLVmPF/U5I+9yK1ZwxJNptLP6Se74Y1CSMQfJTY=
     Signed: eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJpc3N1ZXIiLCJzdWIiOiJzdWJqZWN0In0.fLSIRp4So0H2Pe9HAyqAgprpE7m5Mdb3JEvkM6SOPhc
     200 OK
@@ -109,13 +112,13 @@ where the jwt header is
 - `encrypted then signed`
 
 ```bash
-$ go run server/main.go 
+$ go run http_jwt_server/main.go 
     Starting Server..
     derived SigningKey: jq4CJ/H08l+m/dfJi96a1OHeId80ZtZvz8xiJpuW+i8=
     derived EncryptionKey: E1NrJbfb/n4DJvXvngemQLBya4HdO+DkHLblV3cGYFE=
 
 
-$ go run client/main.go 
+$ go run http_jwt_client/main.go 
     derived SigningKey: jq4CJ/H08l+m/dfJi96a1OHeId80ZtZvz8xiJpuW+i8=
     derived EncryptionKey: E1NrJbfb/n4DJvXvngemQLBya4HdO+DkHLblV3cGYFE=
     Encrypted JWE: eyJhbGciOiJkaXIiLCJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwia2lkIjoiY2xpZW50XzEiLCJ0eXAiOiJKV1QifQ..UufNES78x_xBEyb1.SU3IvwAJdRP868vdiWvQTuWomnv-1lSpQn0VvIDkp3bQhTIRgGNIHs3AmeKiGPM6NkHaYa0l_d3KvY766Tk-Tc5BjkZ2akliC8qbOxvkZqU3pAS9f99vy0XZe4PfvvF_tHaxUcijTFSXScaR.I0drMfegG3lkwV19eD7USw
@@ -137,7 +140,7 @@ where the JWE header is:
 
 ### Using TPM
 
-If you wanted the client to actually use a TPM, the following will create a software TPM and load/import an HMAC key.
+If you wanted the client to initialize a new swtpm and your own hmac key (vs the defualt swtpm in this library which uses `my_api_key` as root key), the following will create a software TPM and load/import an HMAC key.
 
 ```bash
 sudo swtpm_setup --tpmstate myvtpm --tpm2 --create-ek-cert

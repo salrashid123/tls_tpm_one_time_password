@@ -15,6 +15,7 @@ import (
 
 	// kbkdf "github.com/canonical/go-kbkdf"
 
+	"github.com/hashicorp/vault/sdk/helper/kdf"
 	tpmkdf "github.com/salrashid123/tpm-kdf/hmac"
 
 	"github.com/google/go-tpm-tools/simulator"
@@ -74,31 +75,39 @@ func main() {
 		return
 	}
 
+	// A) Start standard HMAC to derive a key since its a PRF
+	// mac := hmac.New(sha256.New, []byte(*key))
+	// mac.Write(ekm)
+	// derivedKey := mac.Sum(nil)
+	// End standard HMAC
+
+	// B) start TPM
 	c, err := os.ReadFile(*in)
 	if err != nil {
 		fmt.Printf("Error reading file %v\n", err)
 		return
 	}
 
-	// start TPM HMAC
-	derivedKey, err := tpmkdf.TPMHMAC(*tpmPath, nil, c, nil, nil, ekm)
-	if err != nil {
-		fmt.Printf("Error getting TPMHMAC %v\n", err)
-		return
-	}
-
-	// prfLen := kdf.HMACSHA256PRFLen
-	// derivedKey, err := kdf.CounterMode(func(key []byte, data []byte) ([]byte, error) {
-	// 	return tpmkdf.TPMHMAC(*tpmPath, nil, c, nil, nil, data)
-	// }, prfLen, nil, ekm, 256)
+	// B1) derive key using TPM hmac
+	// derivedKey, err := tpmkdf.TPMHMAC(*tpmPath, nil, c, nil, nil, "", ekm)
 	// if err != nil {
 	// 	fmt.Printf("Error getting TPMHMAC %v\n", err)
 	// 	return
 	// }
 
+	// B2) derive key using TPM-based KDF and vault's wrapper
+	prfLen := kdf.HMACSHA256PRFLen
+	derivedKey, err := kdf.CounterMode(func(key []byte, data []byte) ([]byte, error) {
+		return tpmkdf.TPMHMAC(*tpmPath, nil, c, nil, nil, "", data)
+	}, prfLen, nil, ekm, 256)
+	if err != nil {
+		fmt.Printf("Error getting TPMHMAC %v\n", err)
+		return
+	}
+
 	// end TPM HMAC
 
-	fmt.Printf("derived APIKey: %s\n", base64.StdEncoding.EncodeToString(ekm))
+	fmt.Printf("derived APIKey: %s\n", base64.StdEncoding.EncodeToString(derivedKey))
 
 	tr := &http.Transport{
 		DialTLSContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {

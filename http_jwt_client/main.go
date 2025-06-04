@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -13,9 +11,13 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/google/go-tpm-tools/simulator"
+	"github.com/google/go-tpm/tpmutil"
+	tpmkdf "github.com/salrashid123/tpm-kdf/hmac"
 )
 
 const (
@@ -23,10 +25,24 @@ const (
 )
 
 var (
-	rootca = flag.String("rootca", "certs/root-ca.crt", "RootCA File")
-	keyID  = flag.String("keyID", "client_1", "Client id")
-	key    = flag.String("key", "my_api_key", "API KEY")
+	rootca  = flag.String("rootca", "certs/root-ca.crt", "RootCA File")
+	keyID   = flag.String("keyID", "client_1", "Client id")
+	key     = flag.String("key", "my_api_key", "API KEY")
+	tpmPath = flag.String("tpm-path", "127.0.0.1:2321", "Path to the TPM device (character device or a Unix socket).")
+	in      = flag.String("in", "certs/tpm-key.pem", "privateKey File")
 )
+
+var TPMDEVICES = []string{"/dev/tpm0", "/dev/tpmrm0"}
+
+func openTPM(path string) (io.ReadWriteCloser, error) {
+	if slices.Contains(TPMDEVICES, path) {
+		return tpmutil.OpenTPM(path)
+	} else if path == "simulator" {
+		return simulator.Get()
+	} else {
+		return net.Dial("tcp", path)
+	}
+}
 
 func main() {
 
@@ -67,15 +83,37 @@ func main() {
 		return
 	}
 
-	smac := hmac.New(sha256.New, []byte(*key))
-	smac.Write(ekmSign)
-	derivedSigningKey := smac.Sum(nil)
+	// Start standard HMAC
+	// smac := hmac.New(sha256.New, []byte(*key))
+	// smac.Write(ekmSign)
+	// derivedSigningKey := smac.Sum(nil)
 
-	emac := hmac.New(sha256.New, []byte(*key))
-	emac.Write(ekmEncrypt)
-	derivedEncryptionKey := emac.Sum(nil)
-
+	// emac := hmac.New(sha256.New, []byte(*key))
+	// emac.Write(ekmEncrypt)
+	// derivedEncryptionKey := emac.Sum(nil)
 	// End standard HMAC
+
+	// start TPM KDF since hmac is PRF
+	// B) start TPM
+	c, err := os.ReadFile(*in)
+	if err != nil {
+		fmt.Printf("Error reading file %v\n", err)
+		return
+	}
+
+	// B1) derive key using TPM hmac
+	derivedSigningKey, err := tpmkdf.TPMHMAC(*tpmPath, nil, c, nil, nil, "", ekmSign)
+	if err != nil {
+		fmt.Printf("Error getting TPMHMAC %v\n", err)
+		return
+	}
+
+	derivedEncryptionKey, err := tpmkdf.TPMHMAC(*tpmPath, nil, c, nil, nil, "", ekmEncrypt)
+	if err != nil {
+		fmt.Printf("Error getting TPMHMAC %v\n", err)
+		return
+	}
+	// end TPM HMAC
 
 	fmt.Printf("derived SigningKey: %s\n", base64.StdEncoding.EncodeToString(derivedSigningKey))
 	fmt.Printf("derived EncryptionKey: %s\n", base64.StdEncoding.EncodeToString(derivedEncryptionKey))
